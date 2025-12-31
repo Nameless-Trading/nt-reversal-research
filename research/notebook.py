@@ -11,7 +11,7 @@ def _():
     import os
     import altair as alt
     import statsmodels.formula.api as smf
-
+    alt.data_transformers.enable("vegafusion")
     return alt, pl, smf
 
 
