@@ -138,7 +138,6 @@ def _(pl):
 
 @app.cell
 def _(df_factors, df_portfolios, pl, smf):
-    # Join all portfolios with factors
     df_all_joined = (
         df_portfolios
         .join(
@@ -153,16 +152,14 @@ def _(df_factors, df_portfolios, pl, smf):
         .sort('date', 'portfolio')
     )
 
-    # Run regression for each portfolio
     results_list = []
-    formula = "portfolio_return ~ MTUM + QUAL + SPY + USMV + VLUE"
-
     for portfolio_name in df_all_joined['portfolio'].unique().sort():
         df_portfolio = df_all_joined.filter(pl.col('portfolio').eq(portfolio_name))
+
+        formula = "portfolio_return ~ MTUM + QUAL + SPY + USMV + VLUE"
         model = smf.ols(formula=formula, data=df_portfolio)
         result = model.fit()
 
-        # Create dataframe with coefficients and t-stats for this portfolio
         portfolio_results = (
             pl.DataFrame({
                 'portfolio': portfolio_name,
@@ -171,6 +168,7 @@ def _(df_factors, df_portfolios, pl, smf):
                 'T': result.tvalues.values.tolist()
             })
         )
+
         results_list.append(portfolio_results)
 
     df_regression_results = (
