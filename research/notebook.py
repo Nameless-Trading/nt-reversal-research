@@ -11,6 +11,7 @@ def _():
     import os
     import altair as alt
     import statsmodels.formula.api as smf
+
     return alt, pl, smf
 
 
@@ -24,9 +25,14 @@ def _():
 def _(pl):
     df_reversal = (
         pl.read_parquet("data/stock_returns.parquet")
-        .sort('ticker', 'date')
+        .sort("ticker", "date")
         .with_columns(
-            pl.col('return').log1p().rolling_sum(21).shift(1).over('ticker').alias('reversal')
+            pl.col("return")
+            .log1p()
+            .rolling_sum(21)
+            .shift(1)
+            .over("ticker")
+            .alias("reversal")
         )
         .drop_nulls()
     )
@@ -39,11 +45,8 @@ def _(pl):
 def _(N_BINS, df_reversal, pl):
     labels = [str(i) for i in range(N_BINS)]
 
-    df_bins = (
-        df_reversal
-        .with_columns(
-            pl.col('reversal').qcut(N_BINS, labels=labels).over('date').alias('bin')
-        )
+    df_bins = df_reversal.with_columns(
+        pl.col("reversal").qcut(N_BINS, labels=labels).over("date").alias("bin")
     )
 
     df_bins
@@ -53,18 +56,13 @@ def _(N_BINS, df_reversal, pl):
 @app.cell
 def _(N_BINS, df_bins, pl):
     df_portfolios = (
-        df_bins
-        .group_by('date', 'bin')
-        .agg(
-            pl.col('return').mean()
-        )
-        .sort('date', 'bin')
-        .pivot(index='date', on='bin', values='return')
-        .with_columns(
-            pl.col('0').sub(str(N_BINS - 1)).alias('spread (0-4)')
-        )
-        .unpivot(index='date', variable_name='portfolio', value_name='return')
-        .sort('date', 'portfolio')
+        df_bins.group_by("date", "bin")
+        .agg(pl.col("return").mean())
+        .sort("date", "bin")
+        .pivot(index="date", on="bin", values="return")
+        .with_columns(pl.col("0").sub(str(N_BINS - 1)).alias("spread (0-4)"))
+        .unpivot(index="date", variable_name="portfolio", value_name="return")
+        .sort("date", "portfolio")
     )
 
     df_portfolios
@@ -73,14 +71,15 @@ def _(N_BINS, df_bins, pl):
 
 @app.cell
 def _(df_portfolios, pl):
-
-    df_cumulative_returns = (
-        df_portfolios
-        .select(
-            'date',
-            'portfolio',
-            pl.col('return').log1p().cum_sum().mul(100).over('portfolio').alias('cumulative_return')
-        )
+    df_cumulative_returns = df_portfolios.select(
+        "date",
+        "portfolio",
+        pl.col("return")
+        .log1p()
+        .cum_sum()
+        .mul(100)
+        .over("portfolio")
+        .alias("cumulative_return"),
     )
 
     df_cumulative_returns
@@ -93,9 +92,9 @@ def _(alt, df_cumulative_returns):
         alt.Chart(df_cumulative_returns)
         .mark_line()
         .encode(
-            x=alt.X('date', title=''),
-            y=alt.Y('cumulative_return', title="Cumulative Log Returns (%)"),
-            color=alt.Color('portfolio', title="Portfolio")
+            x=alt.X("date", title=""),
+            y=alt.Y("cumulative_return", title="Cumulative Log Returns (%)"),
+            color=alt.Color("portfolio", title="Portfolio"),
         )
     )
     return
@@ -104,19 +103,14 @@ def _(alt, df_cumulative_returns):
 @app.cell
 def _(df_portfolios, pl):
     df_summary = (
-        df_portfolios
-        .group_by('portfolio')
+        df_portfolios.group_by("portfolio")
         .agg(
-            pl.col('return').mean().mul(252 * 100).alias('mean'),
-            pl.col('return').std().mul(pl.lit(252).sqrt() * 100).alias('stdev')
+            pl.col("return").mean().mul(252 * 100).alias("mean"),
+            pl.col("return").std().mul(pl.lit(252).sqrt() * 100).alias("stdev"),
         )
-        .with_columns(
-            pl.col('mean').truediv(pl.col('stdev')).alias('sharpe')
-        )
-        .with_columns(
-            pl.exclude('portfolio').round(2)
-        )
-        .sort('portfolio')
+        .with_columns(pl.col("mean").truediv(pl.col("stdev")).alias("sharpe"))
+        .with_columns(pl.exclude("portfolio").round(2))
+        .sort("portfolio")
     )
 
     df_summary
@@ -127,9 +121,9 @@ def _(df_portfolios, pl):
 def _(pl):
     df_factors = (
         pl.read_parquet("data/etf_returns.parquet")
-        .sort('ticker')
-        .pivot(index='date', on='ticker', values='return')
-        .sort('date')
+        .sort("ticker")
+        .pivot(index="date", on="ticker", values="return")
+        .sort("date")
     )
 
     df_factors
@@ -139,42 +133,35 @@ def _(pl):
 @app.cell
 def _(df_factors, df_portfolios, pl, smf):
     df_all_joined = (
-        df_portfolios
-        .join(
-            other=df_factors,
-            on='date',
-            how='left'
-        )
-        .rename({'return': 'portfolio_return'})
-        .with_columns(
-            pl.exclude('date', 'portfolio').mul(100)
-        )
-        .sort('date', 'portfolio')
+        df_portfolios.join(other=df_factors, on="date", how="left")
+        .rename({"return": "portfolio_return"})
+        .with_columns(pl.exclude("date", "portfolio").mul(100))
+        .sort("date", "portfolio")
     )
 
     results_list = []
-    for portfolio_name in df_all_joined['portfolio'].unique().sort():
-        df_portfolio = df_all_joined.filter(pl.col('portfolio').eq(portfolio_name))
+    for portfolio_name in df_all_joined["portfolio"].unique().sort():
+        df_portfolio = df_all_joined.filter(pl.col("portfolio").eq(portfolio_name))
 
         formula = "portfolio_return ~ MTUM + QUAL + SPY + USMV + VLUE"
         model = smf.ols(formula=formula, data=df_portfolio)
         result = model.fit()
 
-        portfolio_results = (
-            pl.DataFrame({
-                'portfolio': portfolio_name,
-                'parameter': result.params.index.tolist(),
-                'B': result.params.values.tolist(),
-                'T': result.tvalues.values.tolist()
-            })
+        portfolio_results = pl.DataFrame(
+            {
+                "portfolio": portfolio_name,
+                "parameter": result.params.index.tolist(),
+                "B": result.params.values.tolist(),
+                "T": result.tvalues.values.tolist(),
+            }
         )
 
         results_list.append(portfolio_results)
 
     df_regression_results = (
         pl.concat(results_list)
-        .pivot(index='portfolio', on='parameter', values=['B', 'T'])
-        .with_columns(pl.exclude('portfolio').round(2))
+        .pivot(index="portfolio", on="parameter", values=["B", "T"])
+        .with_columns(pl.exclude("portfolio").round(2))
     )
 
     df_regression_results

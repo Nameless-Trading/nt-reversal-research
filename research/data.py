@@ -24,10 +24,8 @@ stock_returns_arrow = clickhouse_client.query_arrow(
 
 stock_returns = (
     pl.from_arrow(stock_returns_arrow)
-    .with_columns(
-        pl.col('date').str.strptime(pl.Date, "%Y-%m-%d")
-    )
-    .sort('ticker', 'date')
+    .with_columns(pl.col("date").str.strptime(pl.Date, "%Y-%m-%d"))
+    .sort("ticker", "date")
 )
 
 stock_returns.write_parquet("research/data/stock_returns.parquet")
@@ -38,12 +36,8 @@ etf_returns_arrow = clickhouse_client.query_arrow(
 
 etf_returns = (
     pl.from_arrow(etf_returns_arrow)
-    .with_columns(
-        pl.col('date').str.strptime(pl.Date, "%Y-%m-%d")
-    )
-    .sort('ticker', 'date')
+    .with_columns(pl.col("date").str.strptime(pl.Date, "%Y-%m-%d"))
+    .sort("ticker", "date")
 )
 
 etf_returns.write_parquet("research/data/etf_returns.parquet")
-
-
