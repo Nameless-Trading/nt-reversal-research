@@ -8,7 +8,7 @@ os.makedirs("data", exist_ok=True)
 clickhouse_client = get_clickhouse_client()
 
 start = dt.date(2020, 7, 28)
-end = dt.date(2025, 12, 29)
+end = dt.date(2025, 12, 31)
 
 stock_returns_arrow = clickhouse_client.query_arrow(
     f"""

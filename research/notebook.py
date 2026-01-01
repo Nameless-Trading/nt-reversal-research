@@ -135,7 +135,7 @@ def _(df_factors, df_portfolios, pl, smf):
     df_all_joined = (
         df_portfolios.join(other=df_factors, on="date", how="left")
         .rename({"return": "portfolio_return"})
-        .with_columns(pl.exclude("date", "portfolio").mul(100))
+        .with_columns(pl.exclude("date", "portfolio").mul(100 * 252))
         .sort("date", "portfolio")
     )
 
